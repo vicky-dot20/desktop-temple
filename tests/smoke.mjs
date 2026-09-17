@@ -1,0 +1,4 @@
+import {chromium} from '@playwright/test';
+import assert from 'node:assert/strict';
+const browser=await chromium.launch({channel:'msedge',headless:true});
+try{const page=await browser.newPage({viewport:{width:340,height:367}});const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:3077');await page.locator('canvas').waitFor();assert.equal(await page.locator('header,footer').count(),0);assert.equal(await page.locator('button').count(),2);assert.equal(await page.evaluate(()=>getComputedStyle(document.body).backgroundColor),'rgba(0, 0, 0, 0)');await page.locator('#view').click();assert.equal(await page.evaluate(()=>localStorage.getItem('temple-view')),'1');assert.deepEqual(errors,[]);console.log('PASS: transparent browser renderer and on-temple controls.');}finally{await browser.close();}

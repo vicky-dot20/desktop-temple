@@ -1,0 +1,18 @@
+import {_electron as electron} from '@playwright/test';import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';
+const profile=path.resolve('tests/.lifecycle-profile');fs.mkdirSync(profile,{recursive:true});fs.writeFileSync(path.join(profile,'startup.json'),JSON.stringify({enabled:false}));fs.writeFileSync(path.join(profile,'window.json'),JSON.stringify({size:420,position:{x:100,y:100}}));
+let app;const launch=()=>electron.launch({args:['.','--temple-test','--user-data-dir='+profile]});
+try{app=await launch();const page=await app.firstWindow();await page.locator('canvas').waitFor();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+const initial=await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].getBounds());assert.ok(Math.abs(initial.width-420)<=4);console.log('Native initial bounds',initial);
+await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setPosition(210,180));await page.waitForTimeout(400);
+await page.evaluate(()=>document.querySelector('#close').click());assert.equal(await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].isVisible()),false);
+await app.evaluate(({app})=>app.emit('second-instance'));await page.waitForTimeout(100);assert.equal(await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].isVisible()),true);
+// Exercise lifecycle handlers without putting the user's computer to sleep.
+await app.evaluate(({powerMonitor})=>powerMonitor.emit('suspend'));await app.evaluate(({powerMonitor})=>powerMonitor.emit('resume'));
+const resumed=await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].getBounds());assert.ok(Math.abs(resumed.x-210)<=4&&Math.abs(resumed.y-180)<=4);
+async function cpu(label){await app.evaluate(({app})=>app.getAppMetrics());await page.waitForTimeout(3000);const value=await app.evaluate(({app})=>app.getAppMetrics().reduce((n,p)=>n+p.cpu.percentCPUUsage,0));console.log(label+': '+value.toFixed(2)+'% summed Electron CPU');}
+await cpu('Exterior idle');
+await page.evaluate(()=>{const c=document.querySelector('canvas');for(let y=innerHeight*.65;y<innerHeight;y+=2)for(let x=innerWidth*.3;x<innerWidth*.7;x+=2){c.dispatchEvent(new PointerEvent('pointermove',{clientX:x,clientY:y}));if(c.classList.contains('over-stairs')){c.dispatchEvent(new MouseEvent('dblclick',{clientX:x,clientY:y}));return;}}});
+console.log('Entry started',await page.locator('main').getAttribute('data-mode'));await page.waitForFunction(()=>document.querySelector('main').dataset.mode==='inside',{},{timeout:30000});await page.waitForTimeout(1200);await page.locator('.entry-veil').waitFor({state:'detached',timeout:5000});await cpu('Interior idle');
+await page.evaluate(()=>document.querySelector('#close').click());await cpu('Hidden');await app.evaluate(({powerMonitor})=>{powerMonitor.emit('suspend');powerMonitor.emit('resume');});assert.equal(await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].isVisible()),false);
+assert.deepEqual(errors,[]);await app.close();app=await launch();const page2=await app.firstWindow();await page2.locator('canvas').waitFor();const restored=await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].getBounds());console.log('Restore diagnostic',restored);assert.ok(Math.abs(restored.x-210)<=4&&Math.abs(restored.y-180)<=4&&Math.abs(restored.width-initial.width)<=4&&Math.abs(restored.height-initial.height)<=4);console.log('Native restored bounds',restored);console.log('PASS: animated entry, hide/reopen, suspend/resume handlers, hidden-state preservation, position/size restored across restart.');
+}finally{if(app)await app.close();}

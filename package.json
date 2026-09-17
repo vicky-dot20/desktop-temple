@@ -1,0 +1,60 @@
+{
+  "name": "desktop-temple",
+  "version": "0.10.0",
+  "private": true,
+  "description": "A quiet miniature temple on your desktop",
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 3077",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 3077",
+    "desktop": "npm run build && electron .",
+    "test": "node --test tests/*.test.mjs",
+    "package:win": "npm run build && electron-builder --config electron-builder.config.cjs --win nsis portable",
+    "package:mac": "npm run build && electron-builder --config electron-builder.config.cjs --mac dmg",
+    "icons": "node scripts/icons.mjs"
+  },
+  "dependencies": {
+    "koffi": "^3.3.0",
+    "three": "^0.185.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.0",
+    "electron": "^42.0.0",
+    "electron-builder": "^26.0.12",
+    "vite": "^7.3.0"
+  },
+  "build": {
+    "appId": "studio.desktoptemple.app",
+    "productName": "Desktop Temple",
+    "directories": {
+      "output": "release-private"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json",
+      "assets/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "signExecutable": false,
+      "icon": "assets/temple.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.lifestyle",
+      "icon": "assets/temple.png"
+    },
+    "compression": "normal"
+  }
+}

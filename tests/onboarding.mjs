@@ -1,0 +1,10 @@
+import {_electron as electron} from '@playwright/test';import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';
+const profile=path.resolve('tests/.onboarding-profile');fs.mkdirSync(profile,{recursive:true});fs.writeFileSync(path.join(profile,'startup.json'),JSON.stringify({enabled:false}));fs.writeFileSync(path.join(profile,'setup.json'),'{}');
+const app=await electron.launch(process.argv.includes('--packaged')?{executablePath:path.resolve('release-private/win-unpacked/Desktop Temple.exe'),args:['--temple-test','--test-onboarding','--user-data-dir='+profile]}:{args:['.','--temple-test','--test-onboarding','--user-data-dir='+profile]});
+try{let setup;for(let i=0;i<100;i++){setup=app.windows().find(p=>p.url().includes('onboarding.html'));if(setup)break;await new Promise(r=>setTimeout(r,100));}assert.ok(setup);await setup.locator('#name').waitFor();
+await setup.screenshot({path:'tests/onboarding-login.png'});assert.equal(await setup.locator('#choose').isVisible(),false);
+await assert.rejects(()=>setup.evaluate(()=>window.templeSetup.complete('stone')));
+await setup.locator('#name').fill('Vicky');await setup.locator('button[type=submit]').click();await setup.locator('#choose').waitFor();await setup.waitForTimeout(1600);await setup.screenshot({path:'tests/onboarding-designs.png'});
+for(const id of ['ivory','dravidian','kerala','stone','marble-reference','sandstone-reference','brown-reference']){await setup.locator(`[data-layout="${id}"]`).click();assert.equal(await setup.locator(`[data-layout="${id}"]`).getAttribute('aria-checked'),'true');}
+await setup.locator('#finish').click();await new Promise(r=>setTimeout(r,1000));const temple=app.windows().find(p=>p.url().includes('index.html'));assert.ok(temple.url().includes('layout=brown-reference'));assert.equal(JSON.parse(fs.readFileSync(path.join(profile,'setup.json'))).complete,true);await temple.screenshot({path:'tests/chosen-reference.png',omitBackground:true});console.log('PASS: login required, seven previews selectable, choice saved, selected temple opened.');
+}finally{await app.close();}
